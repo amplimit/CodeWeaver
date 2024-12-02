@@ -26,7 +26,7 @@ class CodeParser:
         try:
             self.parser = Parser()
             # 直接使用预编译的Python语言包
-            PY_LANGUAGE = Language(tree_sitter_python.language(), 'python')
+            PY_LANGUAGE = Language(tree_sitter_python.language())
             self.parser.set_language(PY_LANGUAGE)
             
             # 创建用于查找函数定义和调用的查询
