@@ -77,8 +77,9 @@ class CodeParser:
             captures = self.query.captures(tree.root_node)
             current_function = None
             
-            for capture in captures:
-                node, capture_name = capture.node, capture.name
+            captures = query.captures(root_node)
+            for node, name in captures:
+                print(f"{name}: {node}")
                 if capture_name == "function.whole":
                     # 提取函数信息
                     func_node = node
