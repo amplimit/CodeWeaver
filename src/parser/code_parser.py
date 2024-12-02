@@ -8,6 +8,7 @@ from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 import logging
 from pathlib import Path
+import os
 
 from ..utils.id_generator import IdGenerator, FunctionSignature
 
@@ -32,16 +33,59 @@ class CodeParser:
         """
         try:
             self.parser = Parser()
-            # Load language grammar
-            Language.build_library(
-                # Generate .so file
-                Path(language_dir) / 'build/my-languages.so',
-                # Include language files
-                [Path(language_dir) / 'vendor/tree-sitter-python']
-            )
+            
+            # Load the pre-compiled language file
+            language_path = os.path.join(language_dir, 'tree-sitter-python/python.so')
+            if not os.path.exists(language_path):
+                raise FileNotFoundError(
+                    f"Language file not found at {language_path}. "
+                    "Please compile the language grammar first."
+                )
+                
+            # Create Language object
+            PY_LANGUAGE = Language(language_path, 'python')
+            
+            # Set language for parser
+            self.parser.set_language(PY_LANGUAGE)
+            
         except Exception as e:
             logging.error(f"Failed to initialize parser: {e}")
             raise
+            
+    def _extract_function_info(self, node, code_str: str) -> FunctionInfo:
+        """Extract information from a function node."""
+        start_byte = node.start_byte
+        end_byte = node.end_byte
+        
+        # Get function name
+        name_node = node.child_by_field_name('name')
+        func_name = code_str[name_node.start_byte:name_node.end_byte] if name_node else ""
+        
+        # Get parameters
+        params = []
+        params_node = node.child_by_field_name('parameters')
+        if params_node:
+            for param in params_node.named_children:
+                params.append(code_str[param.start_byte:param.end_byte])
+        
+        # Get docstring if exists
+        docstring = None
+        body_node = node.child_by_field_name('body')
+        if body_node and body_node.named_children:
+            first_child = body_node.named_children[0]
+            if first_child.type == 'string':
+                docstring = code_str[first_child.start_byte:first_child.end_byte]
+        
+        return FunctionInfo(
+            name=func_name,
+            code=code_str[start_byte:end_byte],
+            docstring=docstring,
+            params=params,
+            return_type=None,  # Can be extended to extract return type
+            start_line=node.start_point[0],
+            end_line=node.end_point[0]
+        )
+    
             
     def extract_function_info(
         self, 
