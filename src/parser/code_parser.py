@@ -1,6 +1,6 @@
 """
 File: src/parser/code_parser.py
-Description: Code parser using Tree-sitter for extracting function information and call relationships.
+Description: Code parser using Tree-sitter for extracting function information.
 """
 
 from tree_sitter import Language, Parser
@@ -27,14 +27,19 @@ class CodeParser:
             self.parser = Parser()
             # 直接使用预编译的Python语言包
             PY_LANGUAGE = Language(tree_sitter_python.language())
-            self.parser.set_language(PY_LANGUAGE)
+            # self.parser.set_language(PY_LANGUAGE)
+            self.parser.language = PY_LANGUAGE
             
-            # 创建用于查找函数定义和调用的查询
+            # 优化查询语句，增加更多有用的捕获
             self.query = PY_LANGUAGE.query("""
                 (function_definition
                   name: (identifier) @function.def
                   parameters: (parameters) @function.params
-                  body: (block) @function.body) @function.whole
+                  body: (block 
+                    [(expression_statement
+                        (string) @function.docstring) 
+                     (string) @function.docstring]?  
+                    . _*) @function.body) @function.whole
                   
                 (call
                   function: (identifier) @function.call)
@@ -91,11 +96,15 @@ class CodeParser:
                         for param in params_node.named_children:
                             params.append(code_str[param.start_byte:param.end_byte])
                     
-                    # 提取docstring
+                    # 提取docstring - 优化docstring提取逻辑
                     docstring = None
                     if body_node and body_node.named_children:
                         first_child = body_node.named_children[0]
-                        if first_child.type == 'string':
+                        if first_child.type == 'expression_statement':
+                            string_node = first_child.named_children[0]
+                            if string_node.type == 'string':
+                                docstring = code_str[string_node.start_byte:string_node.end_byte]
+                        elif first_child.type == 'string':
                             docstring = code_str[first_child.start_byte:first_child.end_byte]
                     
                     functions[func_id] = FunctionInfo(
@@ -103,7 +112,7 @@ class CodeParser:
                         code=code_str[node.start_byte:node.end_byte],
                         docstring=docstring,
                         params=params,
-                        return_type=None,  # Could be extended to extract return type
+                        return_type=None,  # 保持原有行为
                         start_line=node.start_point[0],
                         end_line=node.end_point[0]
                     )
@@ -137,23 +146,44 @@ class CodeParser:
         
         if node.type == 'function_definition':
             # Extract function information
-            func_info = self._extract_function_info(node, code_str)
+            name_node = node.child_by_field_name('name')
+            params_node = node.child_by_field_name('parameters')
+            body_node = node.child_by_field_name('body')
             
-            # Generate unique ID
-            signature = FunctionSignature(
-                name=func_info.name,
-                params=func_info.params,
-                return_type=func_info.return_type
-            )
-            func_id = IdGenerator.generate_function_id(file_path, signature)
-            
-            # Store function info
-            functions[func_id] = func_info
-            
-            # Analyze function calls
-            call_graph[func_id] = self._analyze_calls(node)
+            if name_node:
+                func_name = code_str[name_node.start_byte:name_node.end_byte]
+                func_id = f"{file_path}::{func_name}"
+                
+                params = []
+                if params_node:
+                    for param in params_node.named_children:
+                        params.append(code_str[param.start_byte:param.end_byte])
+                
+                docstring = None
+                if body_node and body_node.named_children:
+                    first_child = body_node.named_children[0]
+                    if first_child.type == 'expression_statement':
+                        string_node = first_child.named_children[0]
+                        if string_node.type == 'string':
+                            docstring = code_str[string_node.start_byte:string_node.end_byte]
+                    elif first_child.type == 'string':
+                        docstring = code_str[first_child.start_byte:first_child.end_byte]
+                
+                functions[func_id] = FunctionInfo(
+                    name=func_name,
+                    code=code_str[node.start_byte:node.end_byte],
+                    docstring=docstring,
+                    params=params,
+                    return_type=None,
+                    start_line=node.start_point[0],
+                    end_line=node.end_point[0]
+                )
+                
+                # 分析函数调用
+                if func_id not in call_graph:
+                    call_graph[func_id] = []
         
-        # Continue traversal
+        # 继续遍历
         if cursor.goto_first_child():
             self._process_node(cursor, code_str, file_path, functions, call_graph)
             while cursor.goto_next_sibling():
