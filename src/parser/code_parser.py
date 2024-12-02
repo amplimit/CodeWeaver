@@ -27,7 +27,6 @@ class CodeParser:
             self.parser = Parser()
             # 直接使用预编译的Python语言包
             PY_LANGUAGE = Language(tree_sitter_python.language())
-            # self.parser.set_language(PY_LANGUAGE)
             self.parser.language = PY_LANGUAGE
             
             # 优化查询语句，增加更多有用的捕获
@@ -78,7 +77,8 @@ class CodeParser:
             captures = self.query.captures(tree.root_node)
             current_function = None
             
-            for node, capture_name in captures:
+            for capture in captures:
+                node, capture_name = capture.node, capture.name
                 if capture_name == "function.whole":
                     # 提取函数信息
                     func_node = node
