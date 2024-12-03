@@ -51,16 +51,58 @@ def get_function_calls(storage: CodeStorage, function_id: str):
     
     return called_functions
 
-def print_function_info(func_info, indent=""):
-    """美化输出函数信息"""
+def print_function_list(storage: CodeStorage):
+    """美化函数列表显示"""
+    print("\nAvailable functions:")
+    # 按文件分组显示函数
+    functions_by_file = {}
+    for func_id, func_info in storage.functions.items():
+        file_path = func_id.split('::')[0]
+        if file_path not in functions_by_file:
+            functions_by_file[file_path] = []
+        functions_by_file[file_path].append((func_id, func_info))
+    
+    # 打印分组后的函数列表
+    idx = 1
+    for file_path, funcs in functions_by_file.items():
+        print(f"\nFile: {file_path}")
+        for func_id, func_info in funcs:
+            print(f"{idx:3d}. {func_info.name}")
+            idx += 1
+    return idx - 1
+
+def print_function_info(func_info, func_id=None):
+    """美化函数信息显示"""
     print("\n" + "="*50)
-    print(f"{indent}Function Name: {func_info.name}")
-    print(f"{indent}Parameters: {', '.join(func_info.params)}")
+    if func_id:
+        file_path = func_id.split('::')[0]
+        print(f"File: {file_path}")
+    print(f"Function: {func_info.name}")
+    if func_info.params:
+        print(f"Parameters: {', '.join(func_info.params)}")
     if func_info.docstring:
-        print(f"{indent}Docstring: {func_info.docstring}")
-    print(f"\n{indent}Code:")
-    print(f"{indent}{func_info.code}")
+        print(f"Docstring: {func_info.docstring}")
+    print("\nCode:")
+    print(func_info.code)
     print("="*50)
+
+def print_call_graph(storage: CodeStorage, func_id: str):
+    """显示函数调用关系"""
+    func_info = storage.functions[func_id]
+    callees = storage.call_graph.get(func_id, [])
+    
+    print(f"\nFunction call graph for: {func_info.name}")
+    print(f"Defined in: {func_id.split('::')[0]}")
+    
+    if callees:
+        print("\nCalls to:")
+        for callee_id in callees:
+            if callee_id in storage.functions:
+                callee = storage.functions[callee_id]
+                callee_file = callee_id.split('::')[0]
+                print(f"  - {callee.name} (in {callee_file})")
+    else:
+        print("\nThis function doesn't call any other functions.")
 
 def main():
     # 加载storage
