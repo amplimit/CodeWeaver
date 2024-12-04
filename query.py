@@ -12,7 +12,7 @@ def load_storage(storage_path: str):
 def init_vectorizer():
     """初始化向量化模型"""
     return CodeVectorizer(VectorizeConfig(
-        model_name='/root/autodl-tmp/rag/multilingual-e5-large-instruct',
+        model_name='intfloat/multilingual-e5-large-instruct',
         max_length=512
     ))
 
