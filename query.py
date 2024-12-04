@@ -9,7 +9,7 @@ A powerful query interface for exploring analyzed codebases. It provides various
 """
 from CodeWeaver.storage.code_storage import CodeStorage
 from CodeWeaver.vectorizer.code_vectorizer import CodeVectorizer, VectorizeConfig
-from CodeWeaver.code_info import FunctionInfo
+from CodeWeaver.parser.code_parser import FunctionInfo
 from pathlib import Path
 import json
 
