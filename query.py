@@ -9,6 +9,7 @@ A powerful query interface for exploring analyzed codebases. It provides various
 """
 from CodeWeaver.storage.code_storage import CodeStorage
 from CodeWeaver.vectorizer.code_vectorizer import CodeVectorizer, VectorizeConfig
+from CodeWeaver.code_info import FunctionInfo
 from pathlib import Path
 import json
 
@@ -27,16 +28,18 @@ def init_vectorizer():
 
 def search_similar_functions(storage: CodeStorage, vectorizer: CodeVectorizer, query_code: str, k: int = 5):
     """搜索语义相似的函数"""
-    # 构造一个临时的FunctionInfo对象用于生成查询向量
-    query_info = {
-        'name': 'query',
-        'code': query_code,
-        'docstring': None,
-        'params': [],
-        'return_type': None,
-        'start_line': 0,
-        'end_line': 0
-    }
+    
+    # 使用FunctionInfo对象而不是字典
+    query_info = FunctionInfo(
+        name='query',
+        code=query_code,
+        docstring=None,
+        params=[],
+        return_type=None,
+        start_line=0,
+        end_line=0
+    )
+    
     query_vector = vectorizer.vectorize(query_info)
     
     # 搜索相似函数
