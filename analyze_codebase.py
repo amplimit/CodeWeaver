@@ -1,6 +1,6 @@
-from src.parser.code_parser import CodeParser
-from src.vectorizer.code_vectorizer import CodeVectorizer, VectorizeConfig
-from src.storage.code_storage import CodeStorage
+from CodeWeaver.parser.code_parser import CodeParser
+from CodeWeaver.vectorizer.code_vectorizer import CodeVectorizer, VectorizeConfig
+from CodeWeaver.storage.code_storage import CodeStorage
 import os
 import hashlib
 from pathlib import Path

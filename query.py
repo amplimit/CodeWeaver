@@ -1,5 +1,5 @@
-from src.storage.code_storage import CodeStorage
-from src.vectorizer.code_vectorizer import CodeVectorizer, VectorizeConfig
+from CodeWeaver.storage.code_storage import CodeStorage
+from CodeWeaver.vectorizer.code_vectorizer import CodeVectorizer, VectorizeConfig
 from pathlib import Path
 import json
 
