@@ -1,3 +1,12 @@
+"""
+This file implements the core functionality for analyzing Python codebases. It can handle both local directories and Git repositories, extracting function definitions, class structures, and generating call graphs. The analyzer calculates SHA256 hashes for codebase versioning and supports incremental analysis by caching results. Key features include:
+
+- Python file collection and filtering
+- Code structure extraction (functions, classes)
+- SHA256-based caching system
+- Support for both local and remote Git repositories
+- FAISS vector storage integration
+"""
 from CodeWeaver.parser.code_parser import CodeParser
 from CodeWeaver.vectorizer.code_vectorizer import CodeVectorizer, VectorizeConfig
 from CodeWeaver.storage.code_storage import CodeStorage

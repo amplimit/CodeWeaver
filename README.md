@@ -1,132 +1,142 @@
 # CodeWeaver
 
-**CodeWeaver** is a versatile tool for analyzing, vectorizing, and storing code structures to enable semantic search and dependency exploration. Its modular design ensures flexibility, making it easy to extend or adapt for various use cases.
+CodeWeaver is an intelligent code analysis and understanding tool that uses advanced natural language processing and vector similarity search to help developers navigate and comprehend large codebases.
 
----
+## 🌟 Features
 
-## 🚀 Features
+- **Semantic Code Analysis**: Analyzes Python codebases to understand function relationships, class hierarchies, and code semantics
+- **Vector-Based Code Search**: Find similar code snippets and functions using semantic similarity
+- **Call Graph Generation**: Visualize function call relationships within your codebase
+- **Incremental Analysis**: Save and load analysis results to avoid reprocessing unchanged code
+- **AI-Powered Code Understanding**: Integrate with LLMs for intelligent code comprehension and Q&A
 
-1. **Code Parsing**:
-   - Extracts functions, class methods, docstrings, parameters, and return types.
-   - Analyzes function-to-function call relationships.
-   - Generates unique identifiers for each function using robust signature-based techniques.
+## 🚀 Getting Started
 
-2. **Semantic Vectorization**:
-   - Embeds code blocks into high-dimensional vector spaces using models like `multilingual-e5-large-instruct`.
-   - Captures function semantics across multiple programming languages.
+### Prerequisites
 
-3. **Efficient Storage and Query**:
-   - **FAISS** for high-performance semantic search.
-   - Adjacency lists for graph-based dependency traversal.
-   - Both systems interact seamlessly via function IDs.
+- Python 3.8+
+- Git (for cloning repositories)
 
-4. **Modular Architecture**:
-   - Clear separation of concerns with reusable components in parsing, vectorization, and storage.
-
----
-
-## 📂 Project Structure
-
-```plaintext
-│  README.md           # Project documentation
-│  requirements.txt    # Python dependencies
-│
-├─examples             # Example scripts for using CodeWeaver
-│      example.py
-│
-├─src
-│  ├─parser            # Code parsing and analysis
-│  │      code_parser.py
-│  │
-│  ├─storage           # Storage management (FAISS and adjacency list)
-│  │      code_storage.py
-│  │
-│  ├─utils             # Utility functions
-│  │      id_generator.py
-│  │
-│  └─vectorizer        # Semantic vectorization
-│          code_vectorizer.py
-│
-└─test                 # Unit and integration tests
-│
-└─grammars
-   ├─tree-sitter-python
-```
-
----
-
-## 🛠️ Installation
+### Installation
 
 1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-username/CodeWeaver.git
-   cd CodeWeaver
-   ```
+```bash
+git clone https://github.com/StevenChen16/CodeWeaver.git
+cd CodeWeaver
+```
 
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+2. Install the required dependencies:
+```bash
+pip install -r requirements.txt
+```
 
-3. Verify installation:
-   ```bash
-   python -m unittest discover -s test
-   ```
+### Usage
 
----
+#### Basic Usage
 
-## 🛠️ Usage
+1. **Analyze a Codebase**:
+```python
+from analyze_codebase import analyze_codebase
 
-### Example Workflow
+# Analyze local directory or Git repository
+storage, info = analyze_codebase("path/to/your/code")
+```
 
-1. **Code Parsing**:
-   Extract functions, relationships, and metadata:
-   ```bash
-   python src/parser/code_parser.py --source-dir /path/to/codebase
-   ```
+2. **Query Similar Functions**:
+```python
+from query import search_similar_functions, init_vectorizer
 
-2. **Vectorization**:
-   Generate semantic embeddings for parsed functions:
-   ```bash
-   python src/vectorizer/code_vectorizer.py --model multilingual-e5-large-instruct --output-dir ./embeddings
-   ```
+# Initialize components
+vectorizer = init_vectorizer()
 
-3. **Storage**:
-   Save vectors in FAISS and relationships in adjacency list:
-   ```bash
-   python src/storage/code_storage.py --action store --input-dir ./embeddings
-   ```
+# Search for similar functions
+results = search_similar_functions(storage, vectorizer, "your query or code snippet")
+```
 
-4. **Query**:
-   Perform semantic or dependency-based searches:
-   ```bash
-   python src/storage/code_storage.py --action query --query "find a function to sort an array"
-   ```
+3. **Use AI Assistant**:
+```python
+from AI import CodeUnderstandingAI
 
----
+# Initialize AI assistant
+ai = CodeUnderstandingAI()
 
-## 📖 Documentation
+# Analyze project and start chat interface
+ai.analyze_project("path/to/your/code")
+ai.chat()
+```
 
-- [How to Contribute](CONTRIBUTING.md)
-- [API Documentation](docs/api.md)
-- [Use Cases](docs/use_cases.md)
+#### Advanced Features
 
----
+- **Call Graph Analysis**: Explore function call relationships
+- **Code Similarity Search**: Find semantically similar code snippets
+- **Interactive AI Chat**: Ask questions about your codebase
 
-## 🛠️ Roadmap
+## 🏗️ Project Structure
 
-- [ ] Add support for graph databases (e.g., Neo4j).
-- [ ] Implement multi-threaded parsing and vectorization.
-- [ ] Extend support for more programming languages (e.g., Rust, Go).
+```
+CodeWeaver/
+├── CodeWeaver/           # Core package
+│   ├── parser/          # Code parsing modules
+│   ├── storage/         # Vector storage and retrieval
+│   ├── utils/          # Utility functions
+│   └── vectorizer/     # Code vectorization
+├── examples/           # Usage examples
+├── grammars/          # Tree-sitter grammars
+└── AI.py              # AI assistant interface
+```
 
----
+## 🛠️ Core Components
+
+### Parser (`CodeWeaver.parser`)
+Handles code parsing and extraction of function information, class hierarchies, and call graphs.
+
+### Vectorizer (`CodeWeaver.vectorizer`)
+Converts code into semantic vectors using advanced language models.
+
+### Storage (`CodeWeaver.storage`)
+Manages vector storage and retrieval using FAISS for efficient similarity search.
+
+### AI Assistant (`AI.py`)
+Provides an interactive interface for code understanding and querying using LLMs.
+
+## 📝 Example
+
+```python
+from CodeWeaver.parser.code_parser import CodeParser
+from CodeWeaver.vectorizer.code_vectorizer import CodeVectorizer
+from CodeWeaver.storage.code_storage import CodeStorage
+
+# Initialize components
+parser = CodeParser()
+vectorizer = CodeVectorizer()
+storage = CodeStorage(vector_dim=1024)
+
+# Process code and store vectors
+functions, call_graph = parser.extract_function_info(code)
+for func_id, func_info in functions.items():
+    vector = vectorizer.vectorize(func_info)
+    storage.add_function(func_id, vector, func_info, call_graph.get(func_id, []))
+
+# Search for similar functions
+similar_functions = storage.search_similar(query_vector, k=5)
+```
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📄 License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
----
+## 🔗 Contact
 
-## 👥 Contributors
+- GitHub: [@StevenChen16](https://github.com/StevenChen16)
+- Email: [i@stevenchen.site](mailto:i@stevenchen.site)
+- Project Link: [https://github.com/StevenChen16/CodeWeaver](https://github.com/StevenChen16/CodeWeaver)
 
-- Your Name ([i@stevenchen.site](mailto:i@stevenchen.site))
+## 🙏 Acknowledgments
+
+- Thanks to all contributors who have helped with the project
+- Built with [Tree-sitter](https://tree-sitter.github.io/tree-sitter/) for reliable code parsing
+- Powered by [FAISS](https://github.com/facebookresearch/faiss) for efficient similarity search

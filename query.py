@@ -1,3 +1,12 @@
+"""
+A powerful query interface for exploring analyzed codebases. It provides various ways to search and understand code relationships through vector similarity and call graph analysis. Main capabilities include:
+
+- Semantic code search using vector similarity
+- Function call graph visualization
+- Interactive function browsing and exploration
+- Pretty-printed results formatting
+- Support for multiple storage backends
+"""
 from CodeWeaver.storage.code_storage import CodeStorage
 from CodeWeaver.vectorizer.code_vectorizer import CodeVectorizer, VectorizeConfig
 from pathlib import Path

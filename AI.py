@@ -1,3 +1,13 @@
+"""
+An AI-powered assistant that combines the analysis and query capabilities with large language models (LLMs) for enhanced code understanding. The assistant can:
+
+- Process natural language queries about code
+- Provide context-aware responses using RAG (Retrieval-Augmented Generation)
+- Maintain conversation history for coherent interactions
+- Automatically focus on relevant code sections
+- Support both interactive chat and programmatic interfaces
+
+"""
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from pathlib import Path
@@ -8,6 +18,7 @@ from dataclasses import dataclass
 import subprocess
 import sys
 from datetime import datetime
+import uuid
 
 # 导入代码分析模块
 from analyze_codebase import analyze_codebase, CodebaseInfo
@@ -17,6 +28,44 @@ from query import (
     search_similar_functions,
     print_function_info
 )
+
+def prepare_source_path(code_source: str) -> str:
+    """准备源代码路径，支持远程代码克隆"""
+    if code_source.startswith(("http://", "https://", "git@")):
+        try:
+            tmp_dir = Path("./tmp")
+            tmp_dir.mkdir(exist_ok=True)
+            clone_path = tmp_dir / str(uuid.uuid4())
+            
+            print("\nCloning repository...")
+            # 使用subprocess替代os.system，这样我们可以获取更详细的输出
+            process = subprocess.Popen(
+                ["git", "clone", "--depth", "1", code_source, str(clone_path)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=True
+            )
+            
+            # 实时显示克隆进度
+            while True:
+                output = process.stderr.readline()
+                if output == '' and process.poll() is not None:
+                    break
+                if output:
+                    print(output.strip())
+                    
+            # 检查是否成功
+            if process.returncode != 0:
+                raise Exception("Failed to clone repository")
+                
+            print("Repository cloned successfully!")
+            return str(clone_path)
+        except Exception as e:
+            print(f"\nError during repository cloning: {str(e)}")
+            print("Please make sure git is installed and the repository URL is correct.")
+            print("You can also try cloning the repository manually and providing the local path.")
+            sys.exit(1)
+    return code_source
 
 @dataclass
 class ProjectContext:
@@ -62,13 +111,33 @@ class CodeUnderstandingAI:
     def analyze_project(self, project_path: str) -> bool:
         """分析项目代码库"""
         try:
-            self.logger.info(f"Starting project analysis: {project_path}")
-            self.storage, codebase_info = analyze_codebase(project_path)
+            print("\nStarting project analysis...")
+            print("This may take a while for large repositories.")
+            
+            print("\nStep 1: Preparing source code...")
+            # 使用全局定义的prepare_source_path函数
+            prepared_path = prepare_source_path(project_path)
+            
+            print("\nStep 2: Analyzing codebase structure...")
+            self.logger.info(f"Starting project analysis: {prepared_path}")
+            self.storage, codebase_info = analyze_codebase(prepared_path)
+            
+            print("\nStep 3: Initializing vectorizer...")
             self.vectorizer = init_vectorizer()
+            
+            print("\nStep 4: Setting up project context...")
             self.project_context = ProjectContext(codebase_info=codebase_info)
+            
+            print("\nAnalysis completed successfully!")
+            print(f"Found {codebase_info.file_count} Python files")
+            print(f"Analyzed {codebase_info.function_count} functions")
+            print(f"Detected {codebase_info.class_count} classes")
+            
             return True
         except Exception as e:
             self.logger.error(f"Project analysis failed: {e}")
+            print(f"\nError during project analysis: {str(e)}")
+            print("Please check the logs for more details.")
             return False
 
     def load_existing_analysis(self, storage_path: str, info_path: str) -> bool:
