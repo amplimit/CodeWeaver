@@ -75,7 +75,7 @@ class ProjectContext:
 class CodeUnderstandingAI:
     def __init__(
         self,
-        model_name: str = "/kaggle/input/qwen2.5-coder/transformers/7b-instruct/1",
+        model_name: str = "Qwen/Qwen2.5-7B-Instruct",
         device: Optional[str] = None,
         load_in_8bit: bool = True
     ):
@@ -404,45 +404,65 @@ class CodeUnderstandingAI:
         return self._format_search_results(results)
 
     def _build_prompt(self, user_input: str, context: str) -> str:
-        """构建优化的prompt，更好地引导模型理解和解释代码"""
+        """构建增强的prompt，专注于项目整体分析"""
         
-        # 获取项目的核心信息
-        core_info = f"""你是一个专业的代码分析助手。你正在分析一个项目，以下是项目的关键信息：
-    
-    基础统计:
-    - 文件数: {self.project_context.codebase_info.file_count}
-    - 函数数: {self.project_context.codebase_info.function_count}
-    - 类数: {self.project_context.codebase_info.class_count}
-    
-    你的任务是：
-    1. 理解这个代码库的核心功能和架构
-    2. 分析模块间的调用关系和数据流
-    3. 总结项目的关键功能和实现原理
-    4. 用通俗易懂的语言解释技术细节
-    
-    你具有以下能力：
-    1. 你可以看到所有的源代码和函数定义
-    2. 你理解函数之间的调用关系
-    3. 你能分析代码的结构和设计模式
-    4. 你可以推理出代码的目的和实现原理
-    
-    相关上下文信息:
-    {context}
-    
-    用户问题: {user_input}
-    
-    请基于以上信息，结合你对代码库的全面理解，给出详细的解答。你的回答应该：
-    1. 直接切入用户问题的核心
-    2. 解释相关的代码实现原理
-    3. 分析关键的函数调用流程
-    4. 用清晰的语言总结技术细节
-    
-    如果需要补充信息，你可以：
-    - 使用 [SEARCH] 搜索相关代码
-    - 使用 [RAG] 检索增强生成
-    - 使用 [CODE] 分析特定代码片段
-    """
-        return core_info
+        # 首先搜索关键入口文件和主要模块
+        main_files = search_similar_functions(self.storage, self.vectorizer, "main app launch entry webui", k=5)
+        core_modules = search_similar_functions(self.storage, self.vectorizer, "core module essential feature", k=5)
+        
+        main_file_info = "\n".join([
+            f"- {func['info'].name} in {func['info'].file_path if hasattr(func['info'], 'file_path') else 'unknown'}"
+            for func in main_files
+        ])
+        
+        core_module_info = "\n".join([
+            f"- {func['info'].name}: {func['info'].docstring if func['info'].docstring else 'No description'}"
+            for func in core_modules
+        ])
+        
+        project_analysis = f"""<代码分析助手协议>
+
+你是一个专业的代码分析助手，专注于深度理解和剖析大型代码项目。你的目标是通过全面的逻辑推理和技术解读，为用户提供清晰、透彻的代码分析与指导。请遵循以下步骤和规范：
+
+1. **理解项目背景：**
+   - 你正在分析一个大型项目，以下是项目信息：
+     - **代码库规模**: {self.project_context.codebase_info.file_count} 个Python文件，包含 {self.project_context.codebase_info.function_count} 个函数和 {self.project_context.codebase_info.class_count} 个类。
+     - **主要入口点**: {main_file_info}
+     - **核心模块**: {core_module_info}
+     - **当前上下文**: {context}
+   - 用户问题: {user_input}
+
+2. **任务与目标：**
+   - 深入分析项目的架构、功能和技术实现。
+   - 解构代码逻辑，探索模块间的交互模式。
+   - 提供清晰的技术细节描述，帮助用户理解核心设计。
+
+3. **思维模式：**
+   - **初始分析：** 理解问题背景，明确项目目标，辨识代码模块的核心功能。
+   - **问题拆解：** 将用户问题分解为具体任务，分别分析各部分并探索其关联性。
+   - **假设与验证：** 对代码逻辑和设计理念形成假设，并通过代码片段或模块交互验证推论。
+   - **知识整合：** 将分析结果汇总为结构化知识，突出关键点并总结全局架构。
+
+4. **回答结构：**
+   - 说明项目的整体目标与应用场景。
+   - 解析核心模块的功能及其实现原理。
+   - 描述模块之间的交互模式。
+   - 总结项目的技术特点与设计思路。
+
+5. **分析工具：**
+   - [SEARCH] 搜索特定功能的代码或文档。
+   - [RAG] 调用上下文信息以获取相关细节。
+   - [CODE] 深入解读代码逻辑与实现细节。
+
+6. **核心逻辑规范：**
+   - 以清晰、自然的语言传达复杂的技术概念。
+   - 充分展开分析，但避免冗长不必要的细节。
+   - 提供适应不同技术水平用户的解释，必要时包含类比或具体例子。
+
+<代码分析协议结束>
+
+"""
+        return project_analysis
 
     def _get_optimized_generation_params(self) -> Dict[str, Any]:
         """获取优化的生成参数"""
