@@ -7,7 +7,7 @@ This file implements the core functionality for analyzing Python codebases. It c
 - Support for both local and remote Git repositories
 - FAISS vector storage integration
 """
-from CodeWeaver.parser.code_parser import CodeParser
+from CodeWeaver.parser.code_parser_py import CodeParser
 from CodeWeaver.vectorizer.code_vectorizer import CodeVectorizer, VectorizeConfig
 from CodeWeaver.storage.code_storage import CodeStorage
 import os
