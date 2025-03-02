@@ -3,7 +3,7 @@ import tree_sitter_java
 from typing import Dict, List, Tuple, Optional, Set
 from dataclasses import dataclass
 from pathlib import Path
-from code_parser_py import FunctionInfo, ImportInfo
+from .code_parser_py import FunctionInfo, ImportInfo
 
 class CodeParserJava:
     def __init__(self):
