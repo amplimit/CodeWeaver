@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional
 import numpy as np
 import logging
 from dataclasses import dataclass
-from ..parser.code_parser import FunctionInfo  # 导入 FunctionInfo 类型
+from ..parser.code_parser_py import FunctionInfo  # 导入 FunctionInfo 类型
 
 @dataclass
 class VectorizeConfig:

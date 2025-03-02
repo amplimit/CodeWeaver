@@ -1,13 +1,13 @@
 """
-This file implements the core functionality for analyzing Python codebases. It can handle both local directories and Git repositories, extracting function definitions, class structures, and generating call graphs. The analyzer calculates SHA256 hashes for codebase versioning and supports incremental analysis by caching results. Key features include:
+This file implements the core functionality for analyzing codebases. It can handle both local directories and Git repositories, extracting function definitions, class structures, and generating call graphs. The analyzer calculates SHA256 hashes for codebase versioning and supports incremental analysis by caching results. Key features include:
 
-- Python file collection and filtering
+- Code file collection and filtering (Python, C++, Java)
 - Code structure extraction (functions, classes)
 - SHA256-based caching system
 - Support for both local and remote Git repositories
 - FAISS vector storage integration
 """
-from CodeWeaver.parser.code_parser_py import CodeParser
+from CodeWeaver.parser.code_parser import CodeParser, get_parser_for_file
 from CodeWeaver.vectorizer.code_vectorizer import CodeVectorizer, VectorizeConfig
 from CodeWeaver.storage.code_storage import CodeStorage
 import os
@@ -58,34 +58,49 @@ def get_storage_path(code_uuid: str, use_faiss: bool = True) -> str:
     else:
         return str(storage_dir / f"{code_uuid}_info.json")
 
-def collect_python_files(base_path: str) -> List[Tuple[str, str]]:
-    """收集Python文件，返回(文件名, 绝对路径)的列表"""
-    python_files = []
+def collect_code_files(base_path: str) -> List[Tuple[str, str]]:
+    """收集所有支持的代码文件，返回(文件名, 绝对路径)的列表"""
+    code_files = []
     base_path = Path(base_path).resolve()
     
     if base_path.is_file():
-        if base_path.suffix == '.py':
-            python_files.append((base_path.name, str(base_path)))
+        ext = base_path.suffix
+        if ext in ['.py', '.cpp', '.cc', '.h', '.hpp', '.c', '.java']:
+            code_files.append((base_path.name, str(base_path)))
     else:
+        # 搜索Python文件
         for py_file in base_path.rglob('*.py'):
             if not any(part.startswith(('.', '__', 'venv', 'env')) 
                       for part in py_file.parts):
-                python_files.append((py_file.name, str(py_file)))
+                code_files.append((py_file.name, str(py_file)))
+        
+        # 搜索C++文件
+        for ext in ['.cpp', '.cc', '.h', '.hpp', '.c']:
+            for cpp_file in base_path.rglob(f'*{ext}'):
+                if not any(part.startswith(('.', '__', 'build', 'out')) 
+                          for part in cpp_file.parts):
+                    code_files.append((cpp_file.name, str(cpp_file)))
+        
+        # 搜索Java文件
+        for java_file in base_path.rglob('*.java'):
+            if not any(part.startswith(('.', '__', 'target', 'build')) 
+                      for part in java_file.parts):
+                code_files.append((java_file.name, str(java_file)))
     
-    return python_files
+    return code_files
 
 def analyze_codebase(code_source: str, use_faiss: bool = True) -> Tuple[Optional[CodeStorage], CodebaseInfo]:
     """分析代码库，支持单个文件或整个目录"""
     # 生成UUID
     code_uuid = str(uuid.uuid4())
     
-    # 收集Python文件
-    python_files = collect_python_files(code_source)
-    if not python_files:
-        raise ValueError(f"No Python files found in {code_source}")
+    # 收集代码文件
+    code_files = collect_code_files(code_source)
+    if not code_files:
+        raise ValueError(f"No code files found in {code_source}")
     
     # 计算SHA256
-    code_sha256 = calculate_sha256(python_files)
+    code_sha256 = calculate_sha256(code_files)
     
     # 检查是否存在相同的SHA256
     storage_dir = Path("storage")
@@ -111,7 +126,7 @@ def analyze_codebase(code_source: str, use_faiss: bool = True) -> Tuple[Optional
     storage = None
     if use_faiss:
         # 初始化组件
-        parser = CodeParser()
+        unified_parser = CodeParser()  # 使用统一接口
         vectorizer = CodeVectorizer(VectorizeConfig(
             model_name='intfloat/multilingual-e5-large-instruct',
             max_length=512
@@ -123,35 +138,47 @@ def analyze_codebase(code_source: str, use_faiss: bool = True) -> Tuple[Optional
     total_classes = 0
     processed_files = []
     
-    # 处理每个Python文件
-    for rel_path, abs_path in python_files:
+    # 处理每个代码文件
+    for rel_path, abs_path in code_files:
         logger.info(f"Processing file: {abs_path}")
         try:
             with open(abs_path, 'r', encoding='utf-8') as f:
                 code = f.read()
             
             if use_faiss:
-                # 使用相对路径作为文件标识符
-                functions, call_graph = parser.extract_function_info(code, abs_path)
-                
-                # 记录找到的类
-                classes_in_file = {
-                    func_info.class_name 
-                    for func_info in functions.values() 
-                    if func_info.class_name is not None
-                }
-                total_classes += len(classes_in_file)
-                
-                # 处理每个函数
-                for func_id, func_info in functions.items():
-                    vector = vectorizer.vectorize(func_info)
-                    storage.add_function(func_id, vector, func_info, call_graph.get(func_id, []))
-                
-                total_functions += len(functions)
+                try:
+                    # 使用适当的语言解析器
+                    language_parser = get_parser_for_file(abs_path)
+                    functions, call_graph = language_parser.extract_function_info(code, abs_path)
+                    
+                    # 记录找到的类
+                    classes_in_file = {
+                        func_info.class_name 
+                        for func_info in functions.values() 
+                        if func_info.class_name is not None
+                    }
+                    total_classes += len(classes_in_file)
+                    
+                    # 处理每个函数
+                    for func_id, func_info in functions.items():
+                        vector = vectorizer.vectorize(func_info)
+                        storage.add_function(func_id, vector, func_info, call_graph.get(func_id, []))
+                    
+                    total_functions += len(functions)
+                except ValueError as e:
+                    logger.warning(f"Skipping unsupported file {abs_path}: {e}")
+                    continue
             else:
-                # 简单统计，不进行向量化
-                total_functions += code.count('def ')
-                total_classes += code.count('class ')
+                # 简单统计，不进行向量化 (针对不同语言的基本统计)
+                if abs_path.endswith('.py'):
+                    total_functions += code.count('def ')
+                    total_classes += code.count('class ')
+                elif abs_path.endswith(('.cpp', '.cc', '.h', '.hpp', '.c')):
+                    total_functions += code.count('void ') + code.count('int ') + code.count('bool ')
+                    total_classes += code.count('class ') + code.count('struct ')
+                elif abs_path.endswith('.java'):
+                    total_functions += code.count('void ') + code.count('public ') + code.count('private ')
+                    total_classes += code.count('class ') + code.count('interface ')
             
             processed_files.append(rel_path)
             logger.info(f"Successfully processed {rel_path}")
