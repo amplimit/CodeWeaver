@@ -1,3 +1,8 @@
 ./grammars
 ./pycache/*
 *.egg-info
+*.pyc
+*.env
+tmp/**
+*.log
+storage/**

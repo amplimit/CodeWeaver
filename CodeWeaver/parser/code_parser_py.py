@@ -1,4 +1,4 @@
-from tree_sitter import Language, Parser
+from tree_sitter import Language, Parser, Query, QueryCursor
 import tree_sitter_python
 from typing import Dict, List, Tuple, Optional, Set
 from dataclasses import dataclass
@@ -34,8 +34,8 @@ class CodeParser:
             PY_LANGUAGE = Language(tree_sitter_python.language())
             self.parser.language = PY_LANGUAGE
             
-            # 更新查询以处理更多导入情况
-            self.import_query = PY_LANGUAGE.query("""
+            # 更新查询以处理更多导入情况 - 使用新的Query构造函数
+            self.import_query = Query(PY_LANGUAGE, """
                 (import_statement
                     name: (dotted_name) @import_path)
                 (import_from_statement
@@ -50,6 +50,8 @@ class CodeParser:
                         alias: (identifier) @alias))
             """)
             
+            # 查询游标将在需要时创建
+            
         except Exception as e:
             logging.error(f"Failed to initialize parser: {e}")
             raise
@@ -59,65 +61,41 @@ class CodeParser:
         return source_code[node.start_byte:node.end_byte].decode('utf8')
 
     def _extract_imports(self, tree, source_code: bytes) -> List[ImportInfo]:
-       """提取所有的导入信息"""
+       """提取所有的导入信息 - 简化版本避免复杂查询"""
        imports = []
-       current_import = None
        
-       # 获取所有匹配
-       query_matches = self.import_query.captures(tree.root_node)
-       
-       # 转换格式,从字典转为列表
-       captures = []
-       for type_name, nodes in query_matches.items():
-           for node in nodes:
-               captures.append((node, type_name))
-               
-       # 如果没有匹配到任何import语句，直接返回空列表
-       if not captures:
-           return []
-       
-       i = 0
-       while i < len(captures):
-           node, type_name = captures[i]
-           text = self._get_node_text(node, source_code)
+       # 简化的导入提取：遍历语法树节点
+       def traverse_node(node):
+           if node.type == 'import_statement' or node.type == 'import_from_statement':
+               try:
+                   import_text = self._get_node_text(node, source_code)
+                   # 简单解析import语句
+                   if import_text.startswith('import '):
+                       module_name = import_text.replace('import ', '').strip()
+                       imports.append(ImportInfo(
+                           module=module_name,
+                           names=[module_name],
+                           is_from_import=False
+                       ))
+                   elif import_text.startswith('from '):
+                       # 简单的from import解析
+                       parts = import_text.split(' import ')
+                       if len(parts) == 2:
+                           module_name = parts[0].replace('from ', '').strip()
+                           import_names = [name.strip() for name in parts[1].split(',')]
+                           imports.append(ImportInfo(
+                               module=module_name,
+                               names=import_names,
+                               is_from_import=True
+                           ))
+               except Exception as e:
+                   logging.warning(f"Failed to parse import: {e}")
            
-           if type_name == 'from_path':
-               current_import = ImportInfo(
-                   module=text, 
-                   names=[], 
-                   aliases={},
-                   is_from_import=True
-               )
-           elif type_name == 'import_path':
-               current_import = ImportInfo(
-                   module=text,
-                   names=[text],
-                   aliases={},
-                   is_from_import=False
-               )
-           elif type_name == 'import_name':
-               if current_import and current_import.is_from_import:
-                   current_import.names.append(text)
-                   # 检查下一个捕获是否是别名
-                   if i + 1 < len(captures) and captures[i + 1][1] == 'alias':
-                       alias_node = captures[i + 1][0]
-                       alias = self._get_node_text(alias_node, source_code)
-                       current_import.aliases[text] = alias
-                       i += 1
-           elif type_name == 'alias' and current_import and not current_import.is_from_import:
-               original_name = current_import.names[-1]
-               current_import.aliases[original_name] = text
-           
-           # 完成一个导入语句的处理
-           if current_import and (
-               type_name in ('import_path', 'alias') or 
-               (type_name == 'import_name' and current_import.is_from_import)
-           ):
-               imports.append(current_import)
-               current_import = None
-           
-           i += 1
+           # 递归遍历子节点
+           for child in node.children:
+               traverse_node(child)
        
+       traverse_node(tree.root_node)
        return imports
 
     def _find_function_calls(self, func_node, source_code: bytes) -> Set[str]:

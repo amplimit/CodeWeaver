@@ -70,20 +70,25 @@ def collect_code_files(base_path: str) -> List[Tuple[str, str]]:
     else:
         # 搜索Python文件
         for py_file in base_path.rglob('*.py'):
-            if not any(part.startswith(('.', '__', 'venv', 'env')) 
+            # 修复过滤逻辑：只排除以.开头的隐藏目录，__pycache__目录，和虚拟环境目录
+            # 但保留__init__.py等重要文件
+            excluded_dirs = {'.git', '.vscode', '.idea', '__pycache__', 'venv', 'env', '.env'}
+            if not any(part in excluded_dirs or (part.startswith('.') and part != py_file.name) 
                       for part in py_file.parts):
                 code_files.append((py_file.name, str(py_file)))
         
         # 搜索C++文件
         for ext in ['.cpp', '.cc', '.h', '.hpp', '.c']:
             for cpp_file in base_path.rglob(f'*{ext}'):
-                if not any(part.startswith(('.', '__', 'build', 'out')) 
+                excluded_dirs = {'.git', '.vscode', '.idea', '__pycache__', 'build', 'out', 'target'}
+                if not any(part in excluded_dirs or (part.startswith('.') and part != cpp_file.name) 
                           for part in cpp_file.parts):
                     code_files.append((cpp_file.name, str(cpp_file)))
         
         # 搜索Java文件
         for java_file in base_path.rglob('*.java'):
-            if not any(part.startswith(('.', '__', 'target', 'build')) 
+            excluded_dirs = {'.git', '.vscode', '.idea', '__pycache__', 'target', 'build', 'out'}
+            if not any(part in excluded_dirs or (part.startswith('.') and part != java_file.name) 
                       for part in java_file.parts):
                 code_files.append((java_file.name, str(java_file)))
     

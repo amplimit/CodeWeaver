@@ -1,5 +1,4 @@
-import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
+import os
 from pathlib import Path
 import json
 import logging
@@ -10,6 +9,8 @@ import sys
 from datetime import datetime
 import uuid
 import re
+from dotenv import load_dotenv
+from openai import OpenAI
 
 # 导入代码分析模块
 from analyze_codebase import analyze_codebase, CodebaseInfo
@@ -73,14 +74,12 @@ class ProjectContext:
             self.search_cache = {}
 
 class CodeUnderstandingAI:
-    def __init__(
-        self,
-        model_name: str = "Qwen/Qwen2.5-7B-Instruct",
-        device: Optional[str] = None,
-        load_in_8bit: bool = True
-    ):
+    def __init__(self):
+        # 加载环境变量
+        load_dotenv()
+        
         self.setup_logging()
-        self.initialize_components(model_name, device, load_in_8bit)
+        self.initialize_openai_client()
         self.project_context = None
         self.storage = None
         self.vectorizer = None
@@ -107,47 +106,29 @@ class CodeUnderstandingAI:
         )
         self.logger = logging.getLogger(__name__)
 
-    def initialize_components(
-        self,
-        model_name: str,
-        device: Optional[str] = None,
-        load_in_8bit: bool = True
-    ):
-        """增强的模型初始化"""
-        self.logger.info(f"Initializing AI with model: {model_name}")
-        
-        # 智能设备选择
-        if device is None:
-            if torch.cuda.is_available():
-                device = "cuda:0"
-                self.logger.info(f"CUDA available, using device: {device}")
-            else:
-                device = "cpu"
-                self.logger.warning("CUDA not available, falling back to CPU")
-        self.device = device
-        
+    def initialize_openai_client(self):
+        """初始化OpenAI客户端"""
         try:
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                model_name,
-                trust_remote_code=True
+            # 从环境变量获取配置
+            api_key = os.getenv('OPENAI_API_KEY')
+            base_url = os.getenv('OPENAI_BASE_URL', 'https://api.openai.com/v1')
+            self.model_name = os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo')
+            
+            if not api_key:
+                raise ValueError("OPENAI_API_KEY not found in environment variables")
+            
+            # 初始化OpenAI客户端
+            self.client = OpenAI(
+                api_key=api_key,
+                base_url=base_url
             )
             
-            # 增强的模型加载
-            load_kwargs = {
-                "device_map": self.device,
-                "trust_remote_code": True
-            }
-            if load_in_8bit and self.device != "cpu":
-                load_kwargs["load_in_8bit"] = True
-                
-            self.model = AutoModelForCausalLM.from_pretrained(
-                model_name,
-                **load_kwargs
-            ).eval()
+            self.logger.info(f"Successfully initialized OpenAI client with model: {self.model_name}")
+            self.logger.info(f"Base URL: {base_url}")
             
         except Exception as e:
-            self.logger.error(f"Failed to initialize model: {e}")
-            raise RuntimeError(f"Model initialization failed: {e}")
+            self.logger.error(f"Failed to initialize OpenAI client: {e}")
+            raise RuntimeError(f"OpenAI client initialization failed: {e}")
 
     def _handle_search(self, query: str) -> Dict[str, Any]:
         """处理搜索关键词"""
@@ -467,37 +448,42 @@ class CodeUnderstandingAI:
     def _get_optimized_generation_params(self) -> Dict[str, Any]:
         """获取优化的生成参数"""
         return {
-            "max_length": 2048,
-            "min_length": 50,
-            "temperature": 0.6,
+            "temperature": 0.7,
+            "max_tokens": 2048,
             "top_p": 0.9,
-            "do_sample": True,
-            "num_beams": 1,
-            "repetition_penalty": 1.1,
-            "no_repeat_ngram_size": 3,
-            "early_stopping": True
+            "frequency_penalty": 0.1,
+            "presence_penalty": 0.1
         }
 
     def _generate_with_fallback(self, prompt: str, gen_kwargs: Dict[str, Any]) -> str:
-        """带有fallback的生成"""
+        """使用OpenAI API生成响应，带有fallback机制"""
         try:
-            inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
-            with torch.no_grad():
-                outputs = self.model.generate(**inputs, **gen_kwargs)
-            response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-            return response.replace(prompt, "").strip()
-        except RuntimeError as e:
-            if "inf" in str(e) or "nan" in str(e):
-                # Fallback到更保守的参数
-                gen_kwargs.update({
-                    "temperature": 0.3,
-                    "top_p": 0.95,
-                    "do_sample": False
-                })
-                outputs = self.model.generate(**inputs, **gen_kwargs)
-                response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-                return response.replace(prompt, "").strip()
-            raise
+            # 首次尝试
+            response = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[{"role": "user", "content": prompt}],
+                **gen_kwargs
+            )
+            return response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            self.logger.warning(f"First attempt failed: {e}, trying with conservative parameters")
+            # Fallback到更保守的参数
+            conservative_kwargs = {
+                "temperature": 0.3,
+                "max_tokens": 1024,
+                "top_p": 0.95
+            }
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[{"role": "user", "content": prompt}],
+                    **conservative_kwargs
+                )
+                return response.choices[0].message.content.strip()
+            except Exception as fallback_e:
+                self.logger.error(f"Fallback also failed: {fallback_e}")
+                raise fallback_e
 
     def chat(self):
         """优化的交互接口"""
@@ -545,18 +531,6 @@ class CodeUnderstandingAI:
                 print("是否继续？(y/n)")
                 if input().lower() != 'y':
                     break
-    def _get_optimized_generation_params(self) -> Dict[str, Any]:
-        """获取优化的生成参数"""
-        return {
-            "max_length": 2048,
-            "min_length": 50,
-            "temperature": 0.7,
-            "top_p": 0.9,
-            "do_sample": True,  # 启用采样
-            "num_beams": 4,     # 增加beam数量
-            "repetition_penalty": 1.1,
-            "no_repeat_ngram_size": 3
-        }
     
     def _process_keywords(self, response: str) -> str:
         """处理响应中的关键词并执行相应操作
