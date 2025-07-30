@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "CodeWeaver"
+version = "0.1.0"
+authors = [
+  { name="Amplimit Team", email="tech@amplimit.com" },
+]
+description = "An intelligent code analysis and understanding tool using NLP and vector similarity search."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Text Processing :: Linguistic",
+]
+
+dependencies = [
+    "tree-sitter>=0.20.1",
+    "torch>=1.9.0",
+    "transformers>=4.11.3",
+    "faiss-cpu>=1.7.2",
+    "numpy>=1.19.5",
+    "tree-sitter-languages>=1.5.0",
+]
+
+[tool.setuptools]
+packages = ["CodeWeaver"]
+
+[project.urls]
+"Homepage" = "https://github.com/amplimit/CodeWeaver"
+"Bug Tracker" = "https://github.com/amplimit/CodeWeaver/issues"
+
+[project.optional-dependencies]
+gpu = [
+    "faiss-gpu>=1.7.2",
+]
